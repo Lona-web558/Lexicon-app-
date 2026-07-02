@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Lexicon — Synonym Finder</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0e0e0f;
+    --surface: #16161a;
+    --card: #1e1e24;
+    --border: #2a2a35;
+    --accent: #c9a96e;
+    --accent2: #7e9ef5;
+    --text: #e8e4dc;
+    --muted: #7a7a8a;
+    --error: #e07070;
+    --tag-bg: #252530;
+    --tag-hover: #2e2e3c;
+  }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 300;
+    overflow-x: hidden;
+  }
+
+  /* Grain overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='1'/%3E%3C/svg%3E");
+    opacity: 0.025;
+    pointer-events: none;
+    z-index: 9999;
+  }
+
+  /* Decorative background line */
+  body::after {
+    content: '';
+    position: fixed;
+    top: 0; left: 50%;
+    transform: translateX(-50%);
+    width: 1px;
+    height: 100vh;
+    background: linear-gradient(to bottom, transparent, var(--border) 30%, var(--border) 70%, transparent);
+    opacity: 0.4;
+    pointer-events: none;
+  }
+
+  .wrapper {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 60px 24px 120px;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* Header */
+  .header {
+    text-align: center;
+    margin-bottom: 60px;
+    animation: fadeDown 0.7s ease both;
+  }
+
+  .header-eyebrow {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.35em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 16px;
+  }
+
+  .header h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(42px, 8vw, 72px);
+    font-weight: 400;
+    line-height: 1;
+    letter-spacing: -0.02em;
+    color: var(--text);
+  }
+
+  .header h1 em {
+    font-style: italic;
+    color: var(--accent);
+  }
+
+  .header p {
+    margin-top: 16px;
+    font-size: 14px;
+    color: var(--muted);
+    font-weight: 300;
+    letter-spacing: 0.01em;
+  }
+
+  /* Search */
+  .search-area {
+    position: relative;
+    animation: fadeUp 0.7s 0.15s ease both;
+  }
+
+  .search-row {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+  }
+
+  .search-input-wrap {
+    flex: 1;
+    position: relative;
+  }
+
+  .search-input-wrap::before {
+    content: '⌕';
+    position: absolute;
+    left: 18px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 20px;
+    color: var(--muted);
+    pointer-events: none;
+    transition: color 0.2s;
+  }
+
+  .search-input-wrap:focus-within::before {
+    color: var(--accent);
+  }
+
+  input[type="text"] {
+    width: 100%;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    color: var(--text);
+    font-family: 'Playfair Display', serif;
+    font-size: 20px;
+    font-weight: 400;
+    padding: 18px 20px 18px 50px;
+    outline: none;
+    transition: border-color 0.25s, box-shadow 0.25s;
+    caret-color: var(--accent);
+  }
+
+  input[type="text"]::placeholder {
+    color: var(--muted);
+    font-style: italic;
+  }
+
+  input[type="text"]:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(201,169,110,0.12);
+  }
+
+  .search-btn {
+    background: var(--accent);
+    color: #0e0e0f;
+    border: none;
+    border-radius: 12px;
+    padding: 18px 28px;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: opacity 0.2s, transform 0.15s;
+    white-space: nowrap;
+    font-weight: 500;
+  }
+
+  .search-btn:hover { opacity: 0.88; transform: translateY(-1px); }
+  .search-btn:active { transform: translateY(0); opacity: 1; }
+
+  /* History chips */
+  .history-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 16px;
+    min-height: 28px;
+  }
+
+  .history-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--muted);
+    align-self: center;
+    margin-right: 4px;
+  }
+
+  .chip {
+    background: var(--tag-bg);
+    border: 1px solid var(--border);
+    border-radius: 100px;
+    padding: 4px 12px;
+    font-size: 12px;
+    color: var(--muted);
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+    font-family: 'DM Sans', sans-serif;
+  }
+
+  .chip:hover {
+    background: var(--tag-hover);
+    color: var(--text);
+    border-color: var(--accent);
+  }
+
+  /* Divider */
+  .divider {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 48px 0 40px;
+    opacity: 0.5;
+  }
+
+  /* State displays */
+  .state-box {
+    text-align: center;
+    padding: 60px 20px;
+    animation: fadeUp 0.5s ease both;
+  }
+
+  .state-icon {
+    font-size: 48px;
+    margin-bottom: 16px;
+    display: block;
+  }
+
+  .state-box h2 {
+    font-family: 'Playfair Display', serif;
+    font-size: 22px;
+    font-weight: 400;
+    margin-bottom: 8px;
+    color: var(--text);
+  }
+
+  .state-box p {
+    font-size: 14px;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+
+  /* Loader */
+  .loader {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    padding: 60px 0;
+    animation: fadeUp 0.3s ease both;
+  }
+
+  .loader span {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: bounce 1.2s ease-in-out infinite;
+  }
+
+  .loader span:nth-child(2) { animation-delay: 0.2s; }
+  .loader span:nth-child(3) { animation-delay: 0.4s; }
+
+  @keyframes bounce {
+    0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+    40% { transform: scale(1); opacity: 1; }
+  }
+
+  /* Results */
+  .results-header {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    margin-bottom: 28px;
+    animation: fadeDown 0.4s ease both;
+  }
+
+  .results-word {
+    font-family: 'Playfair Display', serif;
+    font-size: 32px;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: -0.02em;
+  }
+
+  .results-word em {
+    font-style: italic;
+    color: var(--accent);
+    font-weight: 400;
+  }
+
+  .results-count {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-left: auto;
+  }
+
+  /* Filter tabs */
+  .filter-bar {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 28px;
+    flex-wrap: wrap;
+    animation: fadeUp 0.4s 0.1s ease both;
+  }
+
+  .filter-tab {
+    background: var(--tag-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 7px 16px;
+    font-size: 12px;
+    font-family: 'DM Mono', monospace;
+    letter-spacing: 0.05em;
+    color: var(--muted);
+    cursor: pointer;
+    transition: all 0.18s;
+  }
+
+  .filter-tab.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #0e0e0f;
+    font-weight: 500;
+  }
+
+  .filter-tab:not(.active):hover {
+    border-color: var(--accent);
+    color: var(--text);
+  }
+
+  /* Tag cloud */
+  .tag-cloud {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    animation: fadeUp 0.45s 0.15s ease both;
+  }
+
+  .syn-tag {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 18px;
+    font-size: 15px;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 400;
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .syn-tag::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, transparent 60%, rgba(201,169,110,0.06));
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+
+  .syn-tag:hover {
+    border-color: var(--accent);
+    background: var(--tag-hover);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(201,169,110,0.08);
+  }
+
+  .syn-tag:hover::after { opacity: 1; }
+
+  .syn-tag .score-bar {
+    display: block;
+    height: 2px;
+    background: var(--border);
+    border-radius: 2px;
+    margin-top: 6px;
+    overflow: hidden;
+  }
+
+  .syn-tag .score-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    border-radius: 2px;
+  }
+
+  .syn-tag .score-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+    color: var(--muted);
+    margin-top: 4px;
+    letter-spacing: 0.05em;
+  }
+
+  /* Copy toast */
+  .toast {
+    position: fixed;
+    bottom: 32px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--card);
+    border: 1px solid var(--accent);
+    border-radius: 100px;
+    padding: 10px 24px;
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    color: var(--accent);
+    letter-spacing: 0.1em;
+    opacity: 0;
+    transition: opacity 0.25s, transform 0.25s;
+    pointer-events: none;
+    z-index: 100;
+    white-space: nowrap;
+  }
+
+  .toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  /* Offline banner */
+  .offline-banner {
+    background: rgba(224,112,112,0.1);
+    border: 1px solid var(--error);
+    border-radius: 10px;
+    padding: 12px 18px;
+    font-size: 13px;
+    color: var(--error);
+    display: none;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 24px;
+    animation: fadeUp 0.3s ease both;
+  }
+
+  .offline-banner.show { display: flex; }
+
+  /* Footer */
+  .footer {
+    margin-top: 80px;
+    text-align: center;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--border);
+  }
+
+  /* Animations */
+  @keyframes fadeDown {
+    from { opacity: 0; transform: translateY(-16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(14px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  @media (max-width: 520px) {
+    .search-row { flex-direction: column; }
+    .search-btn { width: 100%; }
+    .results-word { font-size: 24px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="wrapper">
+
+  <!-- Header -->
+  <header class="header">
+    <div class="header-eyebrow">English Language · Synonym Finder</div>
+    <h1>Lex<em>icon</em></h1>
+    <p>Search any English word and discover its synonyms, ranked by similarity</p>
+  </header>
+
+  <!-- Offline banner -->
+  <div class="offline-banner" id="offlineBanner">
+    <span>⚡</span>
+    <span>You are offline. Results shown from your local cache.</span>
+  </div>
+
+  <!-- Search -->
+  <div class="search-area">
+    <div class="search-row">
+      <div class="search-input-wrap">
+        <input
+          type="text"
+          id="searchInput"
+          placeholder="e.g. beautiful, courage, fast…"
+          autocomplete="off"
+          autocorrect="off"
+          spellcheck="false"
+        />
+      </div>
+      <button class="search-btn" id="searchBtn">Search</button>
+    </div>
+
+    <div class="history-row" id="historyRow"></div>
+  </div>
+
+  <hr class="divider" />
+
+  <!-- Dynamic area -->
+  <div id="dynamicArea">
+    <div class="state-box">
+      <span class="state-icon">📖</span>
+      <h2>Find the perfect word</h2>
+      <p>Type any English word above and press Search.<br/>Click any result to look up <em>its</em> synonyms too.</p>
+    </div>
+  </div>
+
+  <footer class="footer">
+    Powered by Datamuse API · Click any synonym to explore it
+    <div style="margin-top:10px; letter-spacing:0.08em; text-transform:none; font-size:11px;">© 2026. Created by Lona Smith in the Republic of South Africa · <a href="mailto:lonasmithhq@gmail.com" style="color:var(--border); text-decoration:none;">lonasmithhq@gmail.com</a></div>
+  </footer>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast">Copied to clipboard</div>
+
+<script>
+  const input   = document.getElementById('searchInput');
+  const btn     = document.getElementById('searchBtn');
+  const area    = document.getElementById('dynamicArea');
+  const histRow = document.getElementById('historyRow');
+  const toast   = document.getElementById('toast');
+  const offlineBanner = document.getElementById('offlineBanner');
+
+  // --- Cache (localStorage) ---
+  const CACHE_KEY = 'lexicon_cache';
+  const HISTORY_KEY = 'lexicon_history';
+
+  function getCache() {
+    try { return JSON.parse(localStorage.getItem(CACHE_KEY)) || {}; } catch { return {}; }
+  }
+
+  function setCache(word, data) {
+    const c = getCache();
+    c[word.toLowerCase()] = { data, ts: Date.now() };
+    try { localStorage.setItem(CACHE_KEY, JSON.stringify(c)); } catch {}
+  }
+
+  function getCached(word) {
+    const c = getCache();
+    const entry = c[word.toLowerCase()];
+    if (!entry) return null;
+    // Cache valid for 7 days
+    if (Date.now() - entry.ts > 7 * 24 * 60 * 60 * 1000) return null;
+    return entry.data;
+  }
+
+  // --- History ---
+  function getHistory() {
+    try { return JSON.parse(localStorage.getItem(HISTORY_KEY)) || []; } catch { return []; }
+  }
+
+  function addHistory(word) {
+    let h = getHistory().filter(w => w.toLowerCase() !== word.toLowerCase());
+    h.unshift(word);
+    h = h.slice(0, 8);
+    try { localStorage.setItem(HISTORY_KEY, JSON.stringify(h)); } catch {}
+    renderHistory();
+  }
+
+  function renderHistory() {
+    const h = getHistory();
+    histRow.innerHTML = '';
+    if (!h.length) return;
+    const label = document.createElement('span');
+    label.className = 'history-label';
+    label.textContent = 'Recent:';
+    histRow.appendChild(label);
+    h.forEach(w => {
+      const chip = document.createElement('button');
+      chip.className = 'chip';
+      chip.textContent = w;
+      chip.onclick = () => { input.value = w; doSearch(w); };
+      histRow.appendChild(chip);
+    });
+  }
+
+  // --- Offline detection ---
+  function checkOnline() {
+    offlineBanner.classList.toggle('show', !navigator.onLine);
+  }
+
+  window.addEventListener('online',  checkOnline);
+  window.addEventListener('offline', checkOnline);
+  checkOnline();
+
+  // --- API ---
+  // Datamuse: ml = "means like" (synonyms), rel_syn = WordNet synonyms
+  async function fetchSynonyms(word) {
+    const cached = getCached(word);
+    if (cached) return { data: cached, fromCache: true };
+
+    if (!navigator.onLine) throw new Error('offline');
+
+    // Fetch from two endpoints and merge
+    const [mlRes, synRes] = await Promise.all([
+      fetch(`https://api.datamuse.com/words?ml=${encodeURIComponent(word)}&max=80`),
+      fetch(`https://api.datamuse.com/words?rel_syn=${encodeURIComponent(word)}&max=40`)
+    ]);
+
+    const [mlData, synData] = await Promise.all([mlRes.json(), synRes.json()]);
+
+    // Merge and dedupe, prefer higher score
+    const map = {};
+    [...mlData, ...synData].forEach(item => {
+      const key = item.word.toLowerCase();
+      if (!map[key] || item.score > map[key].score) map[key] = item;
+    });
+
+    // Remove the searched word itself
+    delete map[word.toLowerCase()];
+
+    const merged = Object.values(map).sort((a, b) => b.score - a.score);
+    setCache(word, merged);
+    return { data: merged, fromCache: false };
+  }
+
+  // --- Render ---
+  let currentFilter = 'all';
+  let currentData   = [];
+  let currentWord   = '';
+
+  function renderResults(word, items) {
+    currentWord = word;
+    currentData = items;
+    currentFilter = 'all';
+
+    if (!items.length) {
+      area.innerHTML = `
+        <div class="state-box">
+          <span class="state-icon">🔍</span>
+          <h2>No synonyms found</h2>
+          <p>No results for "<strong>${word}</strong>". Try a different word or check your spelling.</p>
+        </div>`;
+      return;
+    }
+
+    const maxScore = items[0]?.score || 1;
+
+    // Score buckets for filters
+    const high   = items.filter(i => i.score / maxScore >= 0.7);
+    const medium = items.filter(i => i.score / maxScore >= 0.35 && i.score / maxScore < 0.7);
+    const low    = items.filter(i => i.score / maxScore < 0.35);
+
+    area.innerHTML = `
+      <div class="results-header">
+        <div class="results-word">Synonyms of <em>${word}</em></div>
+        <span class="results-count">${items.length} results</span>
+      </div>
+      <div class="filter-bar">
+        <button class="filter-tab active" data-filter="all">All (${items.length})</button>
+        <button class="filter-tab" data-filter="high">Close match (${high.length})</button>
+        <button class="filter-tab" data-filter="medium">Related (${medium.length})</button>
+        <button class="filter-tab" data-filter="low">Loose (${low.length})</button>
+      </div>
+      <div class="tag-cloud" id="tagCloud"></div>
+    `;
+
+    renderTags(items, maxScore);
+
+    // Filter tabs
+    document.querySelectorAll('.filter-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        currentFilter = tab.dataset.filter;
+        const filtered = {
+          all: items,
+          high,
+          medium,
+          low
+        }[currentFilter] || items;
+        renderTags(filtered, maxScore);
+      });
+    });
+  }
+
+  function renderTags(items, maxScore) {
+    const cloud = document.getElementById('tagCloud');
+    if (!cloud) return;
+    cloud.innerHTML = '';
+
+    if (!items.length) {
+      cloud.innerHTML = `<p style="color:var(--muted);font-size:14px;">No words in this category.</p>`;
+      return;
+    }
+
+    items.forEach((item, i) => {
+      const pct = Math.round((item.score / maxScore) * 100);
+      const tag = document.createElement('div');
+      tag.className = 'syn-tag';
+      tag.style.animationDelay = `${i * 0.018}s`;
+      tag.innerHTML = `
+        ${item.word}
+        <span class="score-bar"><span class="score-fill" style="width:${pct}%"></span></span>
+        <span class="score-label">${pct}% match</span>
+      `;
+      tag.title = `Click to look up synonyms of "${item.word}" · Right-click to copy`;
+
+      // Left click → look up this word
+      tag.addEventListener('click', () => {
+        input.value = item.word;
+        doSearch(item.word);
+      });
+
+      // Right click → copy
+      tag.addEventListener('contextmenu', e => {
+        e.preventDefault();
+        copyWord(item.word);
+      });
+
+      cloud.appendChild(tag);
+    });
+  }
+
+  function copyWord(word) {
+    navigator.clipboard.writeText(word).then(() => {
+      toast.textContent = `"${word}" copied`;
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 2000);
+    });
+  }
+
+  // --- Loading / Error states ---
+  function showLoader() {
+    area.innerHTML = `
+      <div class="loader">
+        <span></span><span></span><span></span>
+      </div>`;
+  }
+
+  function showError(msg) {
+    area.innerHTML = `
+      <div class="state-box">
+        <span class="state-icon">⚠️</span>
+        <h2>Something went wrong</h2>
+        <p>${msg}</p>
+      </div>`;
+  }
+
+  // --- Main search ---
+  async function doSearch(word) {
+    word = word.trim();
+    if (!word) return;
+
+    showLoader();
+
+    try {
+      const { data, fromCache } = await fetchSynonyms(word);
+      addHistory(word);
+      renderResults(word, data);
+    } catch (err) {
+      // Try cache as fallback
+      const cached = getCached(word);
+      if (cached) {
+        addHistory(word);
+        renderResults(word, cached);
+        offlineBanner.classList.add('show');
+      } else if (!navigator.onLine) {
+        showError('You are offline and this word has no cached data. Connect to the internet and try again.');
+      } else {
+        showError('Unable to fetch synonyms. Please check your connection and try again.');
+      }
+    }
+  }
+
+  // --- Events ---
+  btn.addEventListener('click', () => doSearch(input.value));
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(input.value); });
+
+  // Init
+  renderHistory();
+</script>
+</body>
+</html>
